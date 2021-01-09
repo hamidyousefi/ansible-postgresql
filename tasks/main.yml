@@ -1,0 +1,95 @@
+---
+- name: add postgres apt keys
+  apt_key:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    state: present
+
+- name: add postgres repository
+  apt_repository:
+    repo: deb http://apt.postgresql.org/pub/repos/apt buster-pgdg main
+    filename: postgres
+
+- name: install postgres packages
+  apt:
+    name: postgresql-12
+    state: present
+    force_apt_get: yes
+    update_cache: yes
+
+- name: tune postgresql config file parameters
+  lineinfile:
+    path: /etc/postgresql/12/main/postgresql.conf
+    regexp: '^#?{{ item.name }} = '
+    line: '{{ item.name }} = {{ item.value }}'
+  with_items:
+    - name: shared_buffers
+      value: "{{ (ansible_memory_mb.real.total / 100 * 25) | round | abs | int }}MB"
+    - name: wal_buffers
+      value: "{{ (ansible_memory_mb.real.total / 100 * 10) | round | abs | int }}MB"
+    - name: effective_cache_size
+      value: "{{ (ansible_memory_mb.real.total / 100 * 65) | round | abs | int }}MB"
+    - name: work_mem
+      value: "{{ (ansible_memory_mb.real.total / 100 * 3) | round | abs | int }}MB"
+    - name: maintenance_work_mem
+      value: "{{ (ansible_memory_mb.real.total / 100 * 10) | round | abs | int }}MB"
+    - name: ssl
+      value: 'off'
+    - name: listen_addresses
+      value: "'{{ ansible_host }}'"
+    - name: max_connections
+      value: '512'
+  notify:
+    - restart postgresql service
+
+- name: create necessary users that doesnt exists
+  shell: "createuser {{ item.user }} -c {{ item.connections }} -DERSw"
+  become: yes
+  become_user: postgres
+  become_method: sudo
+  with_items: "{{ postgresql.users }}"
+  ignore_errors: yes
+
+- name: set password for created users
+  shell: "psql -c \"ALTER USER {{ item.user }} WITH PASSWORD '{{ item.password }}'\""
+  become: yes
+  become_user: postgres
+  become_method: sudo
+  with_items: "{{ postgresql.users }}"
+  ignore_errors: yes
+
+- name: create necessary databases that doesnt exists
+  shell: 'createdb {{ item.database }} -E UTF-8 -O {{ item.user }}'
+  become: yes
+  become_user: postgres
+  become_method: sudo
+  with_items: "{{ postgresql.databases }}"
+  ignore_errors: yes
+
+- name: grant the connect permission to users
+  shell: 'psql -c "GRANT CONNECT ON DATABASE {{ item.database }} TO {{ item.user }}"'
+  become: yes
+  become_user: postgres
+  become_method: sudo
+  with_items: "{{ postgresql.databases }}"
+
+- name: grant schema usage to users
+  shell: 'psql -c "GRANT USAGE ON SCHEMA public TO {{ item.user }}"'
+  become: yes
+  become_user: postgres
+  become_method: sudo
+  with_items: "{{ postgresql.users }}"
+
+- name: grant all permissions on database to users
+  shell: 'psql -c "GRANT ALL PRIVILEGES ON DATABASE {{ item.database }} TO {{ item.user }}"'
+  become: yes
+  become_user: postgres
+  become_method: sudo
+  with_items: "{{ postgresql.databases }}"
+
+- name: let users connect from same subnet machines
+  lineinfile:
+    path: /etc/postgresql/12/main/pg_hba.conf
+    line: 'host all all {{ ansible_subnet }}/{{ ansible_cidr }} md5'
+    insertafter: '# IPv4 local connections:'
+  notify:
+    - send HUP signal to postgresql service
