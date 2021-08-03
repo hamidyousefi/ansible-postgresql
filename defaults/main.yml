@@ -1,0 +1,6 @@
+---
+postgresql:
+  users: []
+  databases: []
+  whitelists:
+    subnets: []

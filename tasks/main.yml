@@ -6,8 +6,8 @@
 
 - name: add postgres repository
   apt_repository:
-    repo: deb http://apt.postgresql.org/pub/repos/apt buster-pgdg main
-    filename: postgres
+    repo: 'deb http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main'
+    filename: postgres.list
 
 - name: install postgres packages
   apt:
@@ -37,7 +37,7 @@
     - name: listen_addresses
       value: "'{{ ansible_host }}'"
     - name: max_connections
-      value: '512'
+      value: '1024'
   notify:
     - restart postgresql service
 
@@ -89,7 +89,8 @@
 - name: let users connect from same subnet machines
   lineinfile:
     path: /etc/postgresql/12/main/pg_hba.conf
-    line: 'host all all {{ ansible_subnet }}/{{ ansible_cidr }} md5'
+    line: 'host all all {{ item }} md5'
     insertafter: '# IPv4 local connections:'
+  with_items: '{{ postgresql.whitelists.subnets }}'
   notify:
     - send HUP signal to postgresql service
