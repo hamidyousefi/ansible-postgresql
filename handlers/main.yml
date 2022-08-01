@@ -1,10 +1,10 @@
 ---
 - name: restart postgresql service
   systemd:
-    name: 'postgresql@12-main.service'
+    name: 'postgresql@{{ postgresql_version }}-main.service'
     enabled: yes
     state: restarted
     daemon_reload: yes
 
 - name: send HUP signal to postgresql service
-  shell: 'systemctl kill -s HUP postgresql@12-main.service'
+  shell: 'systemctl kill -s HUP postgresql@{{ postgresql_version }}-main.service'
