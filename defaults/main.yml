@@ -1,4 +1,6 @@
 ---
+postgresql_version: 12
+postgresql_listen_address: '127.0.0.1'
 postgresql:
   users: []
   databases: []

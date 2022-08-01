@@ -11,14 +11,14 @@
 
 - name: install postgres packages
   apt:
-    name: postgresql-12
+    name: "postgresql-{{ postgresql_version }}"
     state: present
     force_apt_get: yes
     update_cache: yes
 
 - name: tune postgresql config file parameters
   lineinfile:
-    path: /etc/postgresql/12/main/postgresql.conf
+    path: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
     regexp: '^#?{{ item.name }} = '
     line: '{{ item.name }} = {{ item.value }}'
   with_items:
@@ -35,7 +35,7 @@
     - name: ssl
       value: 'off'
     - name: listen_addresses
-      value: "'{{ ansible_host }}'"
+      value: "{{ postgresql_listen_address | default('127.0.0.1') }}"
     - name: max_connections
       value: '1024'
   notify:
@@ -88,7 +88,7 @@
 
 - name: let users connect from same subnet machines
   lineinfile:
-    path: /etc/postgresql/12/main/pg_hba.conf
+    path: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
     line: 'host all all {{ item }} md5'
     insertafter: '# IPv4 local connections:'
   with_items: '{{ postgresql.whitelists.subnets }}'
